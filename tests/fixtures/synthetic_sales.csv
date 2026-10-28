@@ -1,0 +1,6 @@
+InvoiceNumber,Customer,Product,Amount,Date,DueDate,Status
+INV-101,Alpha Corp,Web Development,1200.00,2026-01-05,2026-02-05,paid
+INV-102,Beta LLC,SEO Audit,450.00,2026-01-10,2026-01-25,overdue
+INV-103,Gamma Inc,Cloud Hosting,150.00,2026-01-15,2026-02-15,paid
+INV-104,Beta LLC,Refund - Hosting,-50.00,2026-01-20,2026-02-20,refund
+INV-105,Delta Co,App Maintenance,600.00,2026-01-22,2026-01-30,overdue

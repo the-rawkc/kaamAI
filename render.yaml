@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: kaamai
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: "npm ci && npm run build --workspace apps/web && pip install -r backend/requirements.txt"
+    startCommand: "python run_backend.py"
+    envVars:
+      - key: PORT
+        value: "4000"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: AI_PROVIDER
+        value: "gemini"
+      - key: GEMINI_CHAT_MODEL
+        value: "gemini-2.5-flash"
+      - key: GEMINI_EMBEDDING_MODEL
+        value: "text-embedding-004"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

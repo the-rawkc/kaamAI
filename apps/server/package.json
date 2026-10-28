@@ -1,0 +1,40 @@
+{
+  "name": "server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc && node -e \"const fs = require('fs'); fs.cpSync('src/db/migrations', 'dist/db/migrations', { recursive: true, force: true });\"",
+    "start": "node dist/index.js",
+    "test": "tsx --test src/server.test.ts"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.18.1",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.11.11",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.2"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "connect-pg-simple": "^10.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "express-session": "^1.18.1",
+    "helmet": "^8.3.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.15.4",
+    "zod": "^4.6.7"
+  }
+}

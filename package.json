@@ -1,0 +1,30 @@
+{
+  "name": "kaamai",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others -n web,api \"npm:dev:web\" \"npm:dev:server\"",
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:server": ".\\.venv\\Scripts\\python run_backend.py",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": ".\\.venv\\Scripts\\python -m pytest backend/tests/test_api.py -v",
+    "test:server": ".\\.venv\\Scripts\\python -m pytest backend/tests/test_api.py -v",
+    "lint": "eslint apps/server/src apps/web/src/pages/Landing.tsx",
+    "format": "prettier --write \"apps/server/src/**/*.ts\" \"apps/server/*.json\" apps/web/src/pages/Landing.tsx eslint.config.js .prettierrc.json package.json \"docs/**/*.md\" README.md CHANGELOG.md",
+    "format:check": "prettier --check \"apps/server/src/**/*.ts\" \"apps/server/*.json\" apps/web/src/pages/Landing.tsx eslint.config.js .prettierrc.json package.json \"docs/**/*.md\" README.md CHANGELOG.md",
+    "preview": "npm --workspace apps/web run preview"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^10.0.6",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.9.10",
+    "typescript-eslint": "^8.71.2"
+  }
+}

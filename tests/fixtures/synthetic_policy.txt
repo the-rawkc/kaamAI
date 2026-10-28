@@ -1,0 +1,15 @@
+KaamAI Synthetic Business Policy (Test Fixture)
+Document ID: DOC-FIXTURE-001
+Organization: Synthetic Freelance Studio
+
+1. Payment Terms
+All client invoices are subject to standard Net 30 payment terms from the date of invoice issuance.
+Late payments will incur a late payment charge of 1.5% per month on all outstanding overdue amounts.
+
+2. Refund Policy
+Refund requests must be formally submitted in writing within 14 calendar days of service delivery.
+Approved refunds are processed to the original payment method within 5 business days.
+
+3. Business Operations
+Standard business operating hours are Monday through Friday, 9:00 AM to 6:00 PM IST.
+Emergency server support is available 24/7 via support@synthetic-company.example.invalid.
