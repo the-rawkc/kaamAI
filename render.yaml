@@ -4,11 +4,11 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: "npm ci && npm run build --workspace apps/web && pip install -r backend/requirements.txt"
+    buildCommand: "pip install -r backend/requirements.txt"
     startCommand: "python run_backend.py"
     envVars:
       - key: PORT
-        value: "4000"
+        value: "10000"
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: AI_PROVIDER

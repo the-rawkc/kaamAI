@@ -61,13 +61,14 @@ flowchart TD
 
 ### Option B: Manual Web Service Setup on Render
 
-If configuring manually:
+If configuring manually via **New +** &rarr; **Web Service**:
 
-- **Environment**: Python
+- **Runtime**: **Python 3** (or Docker)
 - **Build Command**:
   ```bash
-  npm ci && npm run build --workspace apps/web && pip install -r backend/requirements.txt
+  pip install -r backend/requirements.txt
   ```
+  *(Note: The React frontend is already pre-compiled in `apps/web/dist`, so no npm/Node.js is needed on the server!)*
 - **Start Command**:
   ```bash
   python run_backend.py
@@ -75,7 +76,6 @@ If configuring manually:
 - **Environment Variables**:
   | Key                      | Value                      | Description                  |
   | :----------------------- | :------------------------- | :--------------------------- |
-  | `PORT`                   | `4000`                     | Port for Uvicorn             |
   | `PYTHONUNBUFFERED`       | `1`                        | Stream console logs          |
   | `AI_PROVIDER`            | `gemini`                   | Use Google Gemini API        |
   | `GEMINI_API_KEY`         | `AIzaSy...`                | Your free Gemini key         |

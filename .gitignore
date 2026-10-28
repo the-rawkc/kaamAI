@@ -3,8 +3,8 @@ node_modules/
 .npm
 npm-debug.log*
 *.log
-dist/
-apps/*/dist/
+/dist/
+apps/server/dist/
 coverage/
 .vite/
 

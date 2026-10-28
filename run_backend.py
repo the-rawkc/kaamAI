@@ -10,6 +10,16 @@ if str(root_dir) not in sys.path:
 import uvicorn
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "4000"))
-    print(f"Starting KaamAI Python FastAPI Backend on http://0.0.0.0:{port}...")
-    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=port, reload=True)
+    is_render = os.getenv("RENDER") is not None
+    is_dev = not is_render and os.getenv("NODE_ENV", "development").lower() == "development"
+    default_port = "10000" if is_render else "4000"
+    port = int(os.getenv("PORT", default_port))
+
+    print(f"Starting KaamAI Backend on http://0.0.0.0:{port} (reload={is_dev})...")
+    uvicorn.run(
+        "backend.app.main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=is_dev,
+        workers=1,
+    )
