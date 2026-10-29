@@ -68,17 +68,21 @@ def get_optional_user(request: Request) -> Optional[Dict[str, Any]]:
     user_data = sess["user"]
     # Verify user still exists in DB
     user_rows = query(
-        "SELECT id, email, role, workspace_id, created_at FROM users WHERE id = %s",
+        "SELECT id, email, role, workspace_id, name, is_active, created_at FROM users WHERE id = %s",
         (user_data["id"],),
     )
     if not user_rows:
         return None
     row = user_rows[0]
+    if row.get("is_active") is False:
+        return None
     return {
         "id": str(row["id"]),
         "email": row["email"],
+        "name": row.get("name") or row["email"].split("@")[0].capitalize(),
         "role": row["role"],
         "workspace_id": str(row["workspace_id"]),
+        "is_active": row.get("is_active", True),
         "created_at": row["created_at"],
     }
 
@@ -89,6 +93,17 @@ def get_current_user(request: Request) -> Dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": {"code": "UNAUTHENTICATED", "message": "Sign in required."}},
+        )
+    return user
+
+
+def require_admin(request: Request) -> Dict[str, Any]:
+    user = get_current_user(request)
+    # Allow admin or owner roles full admin access
+    if user.get("role") not in ("admin", "owner"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "FORBIDDEN", "message": "Administrator privileges required."}},
         )
     return user
 

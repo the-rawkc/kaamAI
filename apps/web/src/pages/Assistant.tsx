@@ -46,7 +46,8 @@ export default function Assistant() {
           setActiveConvId(loadedConversations[0].id);
         }
       } catch {
-        setError("The AI assistant is in demo mode. Connect a backend to enable live responses.");
+        // Clean initialization when no conversations exist yet
+        setConversations([]);
       }
     }
 

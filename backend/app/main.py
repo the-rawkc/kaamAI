@@ -19,6 +19,7 @@ from .routes.agent import router as agent_router
 from .routes.approvals import router as approvals_router
 from .routes.reports import router as reports_router
 from .routes.dashboard import router as dashboard_router
+from .routes.admin import router as admin_router
 
 
 @asynccontextmanager
@@ -86,6 +87,7 @@ app.include_router(agent_router)
 app.include_router(approvals_router)
 app.include_router(reports_router)
 app.include_router(dashboard_router)
+app.include_router(admin_router)
 
 # Mount Vite frontend static files if built
 web_dist = Path(__file__).resolve().parent.parent.parent / "apps" / "web" / "dist"

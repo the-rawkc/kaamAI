@@ -3,14 +3,14 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   BarChart3,
+  BookOpen,
   Bot,
   CheckCircle2,
   Clock3,
+  Database,
   FileText,
   FileUp,
   Loader2,
-  Sparkles,
-  TrendingUp,
   Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
@@ -19,29 +19,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { api } from "@/services/api";
 import { formatBytes, formatRelativeDate } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Document, RecentActivity } from "@/types";
 
 const SUGGESTED_PROMPTS = [
   "What are my outstanding invoices?",
-  "Summarize the Q3 expense report",
-  "Find the contract renewal clause for Acme",
-  "Categorize my expenses by vendor",
-  "Generate a monthly revenue report",
+  "Summarize the recent contract or policy document",
+  "Calculate our total sales revenue",
+  "Which products had the highest sales volume?",
+  "List overdue client invoices with days past due",
 ];
 
 function StatCard({
   title,
   value,
   icon: Icon,
-  change,
-  positive,
   description,
 }: {
   title: string;
-  value: string;
+  value: string | number;
   icon: React.ElementType;
-  change?: string;
-  positive?: boolean;
   description: string;
 }) {
   return (
@@ -52,13 +49,8 @@ function StatCard({
           <Icon className="h-4 w-4" />
         </div>
       </CardHeader>
-      <CardContent className="space-y-2 pt-0">
+      <CardContent className="space-y-1 pt-0">
         <div className="text-3xl font-semibold tracking-tight text-[#172033]">{value}</div>
-        {change ? (
-          <div className={`text-xs font-medium ${positive ? "text-emerald-600" : "text-red-500"}`}>
-            {positive ? "▲" : "▼"} {change}
-          </div>
-        ) : null}
         <p className="text-xs text-slate-500">{description}</p>
       </CardContent>
     </Card>
@@ -67,12 +59,12 @@ function StatCard({
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [summary, setSummary] = React.useState<any>(null);
   const [activity, setActivity] = React.useState<RecentActivity[]>([]);
   const [documents, setDocuments] = React.useState<Document[]>([]);
   const [reports, setReports] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
   const [prompt, setPrompt] = React.useState("");
 
   React.useEffect(() => {
@@ -89,14 +81,12 @@ export default function Dashboard() {
 
         if (!cancelled) {
           setSummary(summaryRes.summary);
-          setActivity(activityRes.activities);
-          setDocuments(documentsRes.documents);
-          setReports(reportsRes.reports);
+          setActivity(activityRes.activities || []);
+          setDocuments(documentsRes.documents || []);
+          setReports(reportsRes.reports || []);
         }
-      } catch {
-        if (!cancelled) {
-          setError("We could not load the live dashboard. Demo data is shown instead.");
-        }
+      } catch (err) {
+        console.error("Dashboard data load error:", err);
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -116,33 +106,35 @@ export default function Dashboard() {
     navigate(`/assistant?q=${encodeURIComponent(prompt.trim())}`);
   };
 
+  const displayName = user?.name || user?.email?.split("@")[0] || "User";
+  const workspaceName = summary?.workspaceName || "Enterprise Workspace";
   const recentDocuments = documents.slice(0, 3);
   const recentReports = reports.slice(0, 2);
 
   const stats = [
     {
-      title: "Active agents",
-      value: String(summary?.activeAgents ?? 12),
-      change: "+1.4%",
-      positive: true,
-      description: "Compared to last week",
+      title: "Documents Uploaded",
+      value: summary?.documentCount ?? documents.length,
+      description: "PDFs and business spreadsheets indexed",
+      icon: FileText,
+    },
+    {
+      title: "Knowledge Chunks",
+      value: summary?.chunkCount ?? 0,
+      description: "768-dim embeddings in pgvector",
+      icon: Database,
+    },
+    {
+      title: "Active Conversations",
+      value: summary?.conversationCount ?? 0,
+      description: "Grounded RAG & AI dialogues",
       icon: Bot,
     },
     {
-      title: "Tasks in queue",
-      value: String(summary?.tasksInQueue ?? 48),
-      change: "+8%",
-      positive: true,
-      description: "Across imports and approvals",
-      icon: Sparkles,
-    },
-    {
-      title: "Avg. response",
-      value: summary?.avgResponseTime ?? "1.8s",
-      change: "-0.2s",
-      positive: true,
-      description: "Faster than your baseline",
-      icon: TrendingUp,
+      title: "Pending Approvals",
+      value: summary?.pendingApprovalsCount ?? 0,
+      description: "Human-in-the-loop actions awaiting signoff",
+      icon: Clock3,
     },
   ];
 
@@ -151,7 +143,7 @@ export default function Dashboard() {
       <div className="flex min-h-[420px] items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-slate-500">
           <Loader2 className="h-8 w-8 animate-spin text-[#6D5EF7]" />
-          <p>Loading your workspace…</p>
+          <p>Loading your workspace metrics…</p>
         </div>
       </div>
     );
@@ -164,13 +156,16 @@ export default function Dashboard() {
           <div>
             <p className="text-sm font-medium text-[#6D5EF7]">Operations overview</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-[#172033]">
-              Welcome back, Jane.
+              Welcome back, {displayName}.
             </h1>
           </div>
 
-          <div className="flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1.5 text-sm text-[#6D5EF7]">
-            <CheckCircle2 className="h-4 w-4" />
-            <span>Demo mode enabled</span>
+          <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-sm font-medium text-emerald-700">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+            </span>
+            <span>{workspaceName}</span>
           </div>
         </div>
 
@@ -185,7 +180,7 @@ export default function Dashboard() {
                 id="main-command"
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                placeholder="Ask KaamAI to review invoices, summarize documents, or build a report…"
+                placeholder="Ask KaamAI to review invoices, summarize documents, or calculate sales…"
                 className="h-14 rounded-2xl border-slate-200 bg-slate-50 pl-12 text-base shadow-none focus-visible:ring-[#6D5EF7]"
               />
             </div>
@@ -210,20 +205,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {error ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
           <StatCard
             key={stat.title}
             title={stat.title}
             value={stat.value}
-            change={stat.change}
-            positive={stat.positive}
             description={stat.description}
             icon={stat.icon}
           />
@@ -233,9 +220,7 @@ export default function Dashboard() {
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
         <Card className="border-slate-200 bg-white shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg text-[#172033]">Recent activity</CardTitle>
-            </div>
+            <CardTitle className="text-lg text-[#172033]">Recent activity</CardTitle>
             <Badge variant="secondary" className="bg-slate-100 text-slate-600">
               {activity.length} updates
             </Badge>
@@ -271,7 +256,7 @@ export default function Dashboard() {
               })
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
-                No recent activity yet.
+                No recent activity yet. Upload a document or run an AI prompt to see real-time updates here.
               </div>
             )}
           </CardContent>
@@ -290,9 +275,9 @@ export default function Dashboard() {
               <Upload className="h-4 w-4" />
               Upload a document
             </Button>
-            <Button variant="outline" onClick={() => navigate("/imports")} className="w-full justify-start gap-2 rounded-xl">
-              <FileUp className="h-4 w-4" />
-              Start CSV import
+            <Button variant="outline" onClick={() => navigate("/docs")} className="w-full justify-start gap-2 rounded-xl border-violet-200 bg-violet-50/50 text-[#6D5EF7] hover:bg-violet-100/60">
+              <BookOpen className="h-4 w-4" />
+              User Guide & Documentation
             </Button>
             <Button variant="outline" onClick={() => navigate("/reports")} className="w-full justify-start gap-2 rounded-xl">
               <BarChart3 className="h-4 w-4" />
@@ -333,7 +318,7 @@ export default function Dashboard() {
               ))
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
-                No documents uploaded yet.
+                No documents uploaded yet. Go to Documents to upload your first PDF or CSV file.
               </div>
             )}
           </CardContent>
@@ -343,7 +328,7 @@ export default function Dashboard() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg text-[#172033]">Recent reports</CardTitle>
             <Button variant="outline" size="sm" onClick={() => navigate("/reports")}>
-              Open
+              View all
             </Button>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
@@ -366,41 +351,12 @@ export default function Dashboard() {
               ))
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
-                No reports generated yet.
+                No reports generated yet. Use the Assistant or Reports page to create your first report.
               </div>
             )}
           </CardContent>
         </Card>
       </div>
-
-      <Card className="border-slate-200 bg-white shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg text-[#172033]">Workspace health</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3 pt-0">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <FileText className="h-4 w-4 text-[#6D5EF7]" />
-              Documents indexed
-            </div>
-            <div className="mt-3 text-2xl font-semibold text-[#172033]">{summary?.documentsCount ?? 24}</div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <FileUp className="h-4 w-4 text-[#14B8A6]" />
-              Imports processed
-            </div>
-            <div className="mt-3 text-2xl font-semibold text-[#172033]">{summary?.importsCount ?? 6}</div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <Clock3 className="h-4 w-4 text-amber-500" />
-              Pending approvals
-            </div>
-            <div className="mt-3 text-2xl font-semibold text-[#172033]">{summary?.pendingApprovals ?? 3}</div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

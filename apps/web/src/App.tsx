@@ -9,9 +9,9 @@ import Imports from "@/pages/Imports";
 import Reports from "@/pages/Reports";
 import Approvals from "@/pages/Approvals";
 import Settings from "@/pages/Settings";
+import Documentation from "@/pages/Documentation";
+import Admin from "@/pages/Admin";
 import Landing from "@/pages/Landing";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -19,7 +19,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return null;
   }
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
   return <>{children}</>;
 }
@@ -35,19 +35,13 @@ export default function App() {
 function AppRouter() {
   const location = useLocation();
 
-  if (location.pathname === "/") {
+  // Landing page acts directly as the Login and Register page
+  if (
+    location.pathname === "/" ||
+    location.pathname === "/login" ||
+    location.pathname === "/register"
+  ) {
     return <Landing />;
-  }
-
-  if (location.pathname === "/login" || location.pathname === "/register") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC]">
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-        </Routes>
-      </div>
-    );
   }
 
   return (
@@ -98,6 +92,22 @@ function AppRouter() {
           element={
             <ProtectedRoute>
               <Approvals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/docs"
+          element={
+            <ProtectedRoute>
+              <Documentation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <Admin />
             </ProtectedRoute>
           }
         />

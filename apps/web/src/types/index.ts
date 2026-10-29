@@ -2,6 +2,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  role?: string;
+  workspace_id?: string;
   avatarUrl?: string;
 }
 
@@ -61,6 +63,9 @@ export interface BusinessSummary {
   documentsCount: number;
   importsCount: number;
   pendingApprovals: number;
+  chunkCount?: number;
+  reportCount?: number;
+  workspaceName?: string;
 }
 
 export interface RecentActivity {
@@ -114,4 +119,4 @@ export interface DemoData {
   approvals: ApprovalItem[];
 }
 
-export const IS_DEMO_DATA = true;
+export const IS_DEMO_DATA = false;

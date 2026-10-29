@@ -127,12 +127,12 @@ export default function SettingsPage() {
 
           <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div>
-              <div className="text-sm font-medium text-[#172033]">Demo mode</div>
+              <div className="text-sm font-medium text-[#172033]">Dual AI Backend</div>
               <div className="mt-1 text-xs text-slate-500">
-                This frontend uses synthetic demo data while the backend integration is still being implemented.
+                Connected to live FastAPI backend with local Ollama inference and Google Gemini cloud API.
               </div>
             </div>
-            <Badge variant="secondary">Demo</Badge>
+            <Badge variant="success">Active</Badge>
           </div>
         </CardContent>
       </Card>

@@ -23,6 +23,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 class RegisterRequest(BaseModel):
+    name: Optional[str] = None
     email: EmailStr
     password: str
     workspace_name: Optional[str] = None
@@ -66,7 +67,7 @@ def register(body: RegisterRequest, response: Response):
         )
 
     # Create isolated workspace for new user
-    ws_name = body.workspace_name or f"{body.email.split('@')[0]}'s Workspace"
+    ws_name = body.workspace_name or (f"{body.name}'s Workspace" if body.name else f"{body.email.split('@')[0]}'s Workspace")
     workspace = create_workspace(name=ws_name)
 
     hashed_pw = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -75,6 +76,7 @@ def register(body: RegisterRequest, response: Response):
         password_hash=hashed_pw,
         role="owner",
         workspace_id=str(workspace["id"]),
+        name=body.name,
     )
 
     sid = create_session(user)
@@ -97,6 +99,7 @@ def register(body: RegisterRequest, response: Response):
         "user": {
             "id": str(user["id"]),
             "email": user["email"],
+            "name": user.get("name") or (body.name or user["email"].split("@")[0].capitalize()),
             "role": user["role"],
             "workspace_id": str(user["workspace_id"]),
             "created_at": user["created_at"],
@@ -124,6 +127,12 @@ def login(body: LoginRequest, response: Response):
             detail={"error": {"code": "INVALID_CREDENTIALS", "message": "Invalid email or password."}},
         )
 
+    if user.get("is_active") is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "ACCOUNT_DISABLED", "message": "Your account has been deactivated by an administrator."}},
+        )
+
     sid = create_session(user)
     response.set_cookie(
         key=SESSION_COOKIE,
@@ -144,6 +153,7 @@ def login(body: LoginRequest, response: Response):
         "user": {
             "id": str(user["id"]),
             "email": user["email"],
+            "name": user.get("name") or user["email"].split("@")[0].capitalize(),
             "role": user["role"],
             "workspace_id": str(user["workspace_id"]),
             "created_at": user["created_at"],
@@ -167,6 +177,7 @@ def me(current_user: dict = Depends(get_current_user)):
         "user": {
             "id": current_user["id"],
             "email": current_user["email"],
+            "name": current_user.get("name") or current_user["email"].split("@")[0].capitalize(),
             "role": current_user["role"],
             "workspace_id": current_user["workspace_id"],
             "created_at": current_user["created_at"],

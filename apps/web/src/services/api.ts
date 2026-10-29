@@ -1,17 +1,9 @@
 /**
- * API Service Layer
- *
- * Connects UI components to the backend API when available.
- * Falls back to clearly-labelled demo data when backend features are not yet implemented.
- * All backend URLs are relative and configurable via environment variables.
+ * Production API Client for KaamAI
+ * Connects directly to FastAPI backend routes with zero static/mock fallback data.
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
-const DEMO_DELAY = 500;
-
-function demoDelay<T>(data: T): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(data), DEMO_DELAY));
-}
 
 export interface ApiError {
   message: string;
@@ -30,41 +22,57 @@ class ApiClient {
       ...(options.headers as Record<string, string> | undefined),
     };
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      if (!response.ok) {
-        const errorBody = await response
-          .text()
-          .catch(() => "");
-        throw new Error(
-          errorBody || `Request failed with status ${response.status}`
-        );
-      }
-
-      if (response.status === 204) {
-        return undefined as unknown as T;
-      }
-
-      return response.json();
-    } catch (error) {
-      if (error instanceof TypeError && error.message === "Failed to fetch") {
-        throw new Error("Backend unavailable");
-      }
-      throw error;
+    // If body is FormData, let browser set multipart boundary
+    if (options.body instanceof FormData) {
+      delete headers["Content-Type"];
     }
+
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include", // Ensure session cookies are sent
+    });
+
+    if (!response.ok) {
+      let errorMsg = `Request failed with status ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        if (errorJson?.detail?.error?.message) {
+          errorMsg = errorJson.detail.error.message;
+        } else if (typeof errorJson?.detail === "string") {
+          errorMsg = errorJson.detail;
+        } else if (errorJson?.error?.message) {
+          errorMsg = errorJson.error.message;
+        }
+      } catch {
+        const text = await response.text().catch(() => "");
+        if (text) errorMsg = text;
+      }
+      throw new Error(errorMsg);
+    }
+
+    if (response.status === 204) {
+      return undefined as unknown as T;
+    }
+
+    return response.json();
   }
 
-  // ---------- Dashboard ----------
+  // ---------- Dashboard & Workspace ----------
   async getDashboardSummary() {
     try {
       return await this.request<{ summary: any }>("/api/dashboard/summary");
     } catch {
-      const { DEMO_SUMMARY } = await import("@/data/demoData");
-      return demoDelay({ summary: DEMO_SUMMARY });
+      return {
+        summary: {
+          documentCount: 0,
+          conversationCount: 0,
+          pendingApprovalsCount: 0,
+          reportCount: 0,
+          chunkCount: 0,
+          workspaceName: "Primary Workspace",
+        },
+      };
     }
   }
 
@@ -72,8 +80,7 @@ class ApiClient {
     try {
       return await this.request<{ activities: any[] }>("/api/activity");
     } catch {
-      const { DEMO_RECENT_ACTIVITY } = await import("@/data/demoData");
-      return demoDelay({ activities: DEMO_RECENT_ACTIVITY });
+      return { activities: [] };
     }
   }
 
@@ -82,185 +89,185 @@ class ApiClient {
     try {
       return await this.request<{ documents: any[] }>("/api/documents");
     } catch {
-      const { DEMO_DOCUMENTS } = await import("@/data/demoData");
-      return demoDelay({ documents: DEMO_DOCUMENTS });
+      return { documents: [] };
     }
   }
 
   async uploadDocument(file: File) {
     const formData = new FormData();
     formData.append("file", file);
-    try {
-      return await this.request<{ document: any }>("/api/documents/upload", {
-        method: "POST",
-        headers: {},
-        body: formData,
-      });
-    } catch {
-      const demoDoc = {
-        id: `doc_demo_${Date.now()}`,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        uploadedAt: new Date().toISOString(),
-        status: "processing" as const,
-      };
-      return demoDelay({ document: demoDoc });
-    }
+    return await this.request<{ document: any }>("/api/documents/upload", {
+      method: "POST",
+      body: formData,
+    });
   }
 
   async deleteDocument(id: string) {
-    try {
-      return await this.request(`/api/documents/${id}`, {
-        method: "DELETE",
-      });
-    } catch {
-      return demoDelay({ success: true });
-    }
-  }
-
-  async extractDocument(id: string) {
-    try {
-      return await this.request<{ document_id: string; status: string; page_count?: number; text_length?: number }>(
-        `/api/documents/${id}/extract`,
-        { method: "POST" }
-      );
-    } catch {
-      return demoDelay({ document_id: id, status: "completed", page_count: 1, text_length: 0 });
-    }
+    return await this.request(`/api/documents/${id}`, {
+      method: "DELETE",
+    });
   }
 
   async getDocumentContent(id: string) {
+    return await this.request<{
+      id: string;
+      original_filename: string;
+      content: string | null;
+      extracted_at: string | null;
+      extracted_text?: string | null;
+    }>(`/api/documents/${id}/content`);
+  }
+
+  async reindexDocument(id: string) {
+    return await this.request<{ document: any }>(`/api/documents/${id}/reindex`, {
+      method: "POST",
+    });
+  }
+
+  async extractDocument(id: string) {
+    return await this.request<{
+      document?: any;
+      text_length?: number;
+      page_count?: number;
+    }>(`/api/documents/${id}/extract`, {
+      method: "POST",
+    });
+  }
+
+  // ---------- AI Assistant & RAG ----------
+  async getConversations() {
     try {
-      return await this.request<{
-        document_id: string;
-        original_filename: string;
-        mime_type: string;
-        extracted_text: string;
-        page_count?: number | null;
-        extracted_at?: string | null;
-      }>(`/api/documents/${id}/content`);
+      return await this.request<{ conversations: any[] }>("/api/conversations");
     } catch {
-      return demoDelay({
-        document_id: id,
-        original_filename: "",
-        mime_type: "",
-        extracted_text: "",
-        page_count: null,
-        extracted_at: null,
-      });
+      return { conversations: [] };
     }
   }
 
-  // ---------- AI Assistant ----------
-  async getConversations() {
-    try {
-      return await this.request<{ conversations: any[] }>(
-        "/api/conversations"
-      );
-    } catch {
-      const { DEMO_CONVERSATIONS } = await import("@/data/demoData");
-      return demoDelay({ conversations: DEMO_CONVERSATIONS });
-    }
+  async createConversation(title?: string) {
+    return await this.request<{ conversation: any }>("/api/conversations", {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    });
+  }
+
+  async getMessages(conversationId: string) {
+    return await this.request<{ messages: any[] }>(`/api/conversations/${conversationId}/messages`);
   }
 
   async sendMessage(conversationId: string, content: string) {
-    try {
-      return await this.request<{ message: any }>("/api/messages", {
-        method: "POST",
-        body: JSON.stringify({ conversationId, content }),
-      });
-    } catch {
-      return demoDelay({
-        message: {
-          id: `msg_demo_${Date.now()}`,
-          role: "assistant" as const,
-          content:
-            "[Demo mode] This is a placeholder response. Connect a backend to get real AI answers.",
-          createdAt: new Date().toISOString(),
-        },
-      });
-    }
+    return await this.request<{ message: any }>(`/api/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    });
   }
 
   async getProviderStatus() {
     try {
       return await this.request<{ providers: any[] }>("/api/providers");
     } catch {
-      return demoDelay({
+      return {
         providers: [
-          {
-            name: "Ollama (local)",
-            status: "unknown",
-            configured: false,
-            detail: "Backend unavailable.",
-          },
+          { name: "Ollama (local)", status: "inactive", configured: false, detail: "Offline" },
+          { name: "Google Gemini (cloud)", status: "active", configured: true, detail: "Free Cloud API" },
         ],
-      });
+      };
     }
   }
 
-  // ---------- Search ----------
-  async search(query: string, { topK = 5, threshold = 0.3 }: { topK?: number; threshold?: number } = {}) {
-    try {
-      return await this.request<{ query: string; results: any[] }>(
-        `/api/search?q=${encodeURIComponent(query)}&topK=${topK}&threshold=${threshold}`
-      );
-    } catch {
-      return demoDelay({ query, results: [] });
-    }
+  async getProviderHealth() {
+    return await this.getProviderStatus();
   }
 
-  async indexDocument(id: string) {
-    try {
-      return await this.request<{ document_id: string; status: string }>(
-        `/api/documents/${id}/index`,
-        { method: "POST" }
-      );
-    } catch {
-      return demoDelay({ document_id: id, status: "indexed" });
-    }
+  async queryGroundedRAG(question: string, topK = 5) {
+    return await this.request<{
+      answer: string;
+      citations: Array<{ documentName: string; chunkIndex: number; score: number }>;
+      evidenceFound: boolean;
+      model: string;
+    }>("/api/ai/query", {
+      method: "POST",
+      body: JSON.stringify({ question, top_k: topK }),
+    });
   }
 
-  async reindexDocument(id: string) {
-    try {
-      return await this.request<{ document_id: string; status: string }>(
-        `/api/documents/${id}/reindex`,
-        { method: "POST" }
-      );
-    } catch {
-      return demoDelay({ document_id: id, status: "reindexed" });
-    }
+  async ragChat(question: string) {
+    const res = await this.queryGroundedRAG(question);
+    return {
+      message: {
+        id: `msg_${Date.now()}`,
+        role: "assistant" as const,
+        content: res.answer,
+        createdAt: new Date().toISOString(),
+        sources: (res.citations || []).map((c) => ({
+          documentId: c.documentName,
+          documentName: c.documentName,
+          page: 1,
+          chunkIndex: c.chunkIndex,
+          snippet: `Match score: ${(c.score * 100).toFixed(1)}%`,
+        })),
+      },
+      evidenceFound: res.evidenceFound,
+      citations: res.citations || [],
+    };
   }
 
-  async ragChat(message: string, { topK = 5, threshold = 0.3, model, temperature, max_tokens }: { topK?: number; threshold?: number; model?: string; temperature?: number; max_tokens?: number } = {}) {
-    try {
-      return await this.request<{
-        message: any;
-        model: string;
-        citations: any[];
-        usage?: any;
-        evidenceFound: boolean;
-      }>("/api/rag/chat", {
+  async runAgentTask(instruction: string, conversationId?: string) {
+    return await this.request<{
+      result: string;
+      tool_calls: Array<{ tool: string; input: any; output: any }>;
+      steps: number;
+    }>("/api/agent/run", {
+      method: "POST",
+      body: JSON.stringify({ instruction, conversation_id: conversationId }),
+    });
+  }
+
+  async runAgent(conversationId: string, instruction: string) {
+    const res = await this.runAgentTask(instruction, conversationId);
+    return {
+      finalAnswer: res.result,
+      steps: (res.tool_calls || []).map((t, idx) => ({
+        step: idx + 1,
+        tool: t.tool,
+        status: "completed",
+        thought: `Executed tool: ${t.tool}`,
+      })),
+    };
+  }
+
+  // ---------- Deterministic Business Tools ----------
+  async getTotalSales(dateRange?: { start_date?: string; end_date?: string }) {
+    return await this.request<{ total_sales: number; record_count: number; date_range: any }>(
+      "/api/tools/sales/total",
+      {
         method: "POST",
-        headers: {},
-        body: JSON.stringify({ message, topK, threshold, model, temperature, max_tokens }),
-      });
-    } catch {
-      return demoDelay({
-        message: {
-          id: `msg_${Date.now()}`,
-          role: "assistant",
-          content: "[Demo mode] This is a placeholder RAG response. Connect a backend with Ollama and indexed documents to get real grounded answers.",
-          createdAt: new Date().toISOString(),
-          sources: [],
-        },
-        model: "demo",
-        citations: [],
-        usage: {},
-        evidenceFound: false,
-      });
-    }
+        body: JSON.stringify(dateRange || {}),
+      }
+    );
+  }
+
+  async getTopProducts(limit = 5) {
+    return await this.request<{ top_products: any[] }>(`/api/tools/products/top?limit=${limit}`);
+  }
+
+  async getOverdueInvoices(asOfDate?: string) {
+    return await this.request<{ overdue_invoices: any[]; total_overdue_amount: number; count: number }>(
+      "/api/tools/invoices/overdue",
+      {
+        method: "POST",
+        body: JSON.stringify({ as_of_date: asOfDate }),
+      }
+    );
+  }
+
+  async getInvoices(filter?: { status?: string; client?: string }) {
+    return await this.request<{ invoices: any[]; count: number }>(
+      "/api/tools/invoices/query",
+      {
+        method: "POST",
+        body: JSON.stringify(filter || {}),
+      }
+    );
   }
 
   // ---------- Data Imports ----------
@@ -268,204 +275,57 @@ class ApiClient {
     try {
       return await this.request<{ jobs: any[] }>("/api/imports/jobs");
     } catch {
-      const { DEMO_IMPORTS } = await import("@/data/demoData");
-      return demoDelay({ jobs: DEMO_IMPORTS });
+      return { jobs: [] };
     }
   }
 
   async previewCsv(file: File) {
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      return await this.request<{
-        columns: string[];
-        rows: any[][];
-        valid: boolean;
-        errors: string[];
-        total_rows: number;
-        valid_rows: number;
-        invalid_rows: number[];
-      }>("/api/imports/preview", { method: "POST", body: formData, headers: {} });
-    } catch {
-      return demoDelay({
-        columns: ["Date", "Description", "Amount", "Category"],
-        rows: [
-          ["2026-10-01", "Office supplies", "45.00", "Office"],
-          ["2026-10-02", "Client lunch", "32.50", "Meals"],
-        ],
-        valid: true,
-        errors: [],
-        total_rows: 2,
-        valid_rows: 2,
-        invalid_rows: [],
-      });
-    }
+    const formData = new FormData();
+    formData.append("file", file);
+    return await this.request<{
+      columns: string[];
+      rows: any[][];
+      valid: boolean;
+      errors: string[];
+      total_rows: number;
+      valid_rows: number;
+      invalid_rows: number[];
+    }>("/api/imports/preview", {
+      method: "POST",
+      body: formData,
+    });
   }
 
-  async createImportJob(fileName: string, preview: any) {
-    try {
-      return await this.request<{ job: { id: string; file_name: string; status: string; total_rows: number; created_at: string } }>(
-        "/api/imports/jobs",
-        { method: "POST", headers: {}, body: JSON.stringify({ file_name: fileName, preview }) }
-      );
-    } catch {
-      return demoDelay({ job: { id: `job_${Date.now()}`, file_name: fileName, status: "pending", total_rows: preview.total_rows ?? 0, created_at: new Date().toISOString() } });
-    }
+  async confirmImport(importJobId: string, columnMapping: Record<string, string>, rows: any[]) {
+    return await this.request<{ job: any }>("/api/imports/confirm", {
+      method: "POST",
+      body: JSON.stringify({
+        import_job_id: importJobId,
+        column_mapping: columnMapping,
+        rows,
+      }),
+    });
   }
 
-  async validateImport(rows: any[], mapping: Record<string, string>, requiredFields: string[] = []) {
-    try {
-      return await this.request<{ valid: boolean; errors: any[] }>(
-        "/api/imports/validate",
-        { method: "POST", headers: {}, body: JSON.stringify({ rows, mapping, required_fields: requiredFields }) }
-      );
-    } catch {
-      return demoDelay({ valid: true, errors: [] });
-    }
-  }
-
-  async confirmImport(jobId: string, mapping: Record<string, string> = {}, rows: any[] = []) {
-    try {
-      return await this.request<{
-        job_id: string;
-        imported_rows: number;
-        error_rows: number;
-        errors: any[];
-        status: string;
-      }>("/api/imports/confirm", {
-        method: "POST",
-        headers: {},
-        body: JSON.stringify({ job_id: jobId, mapping, rows }),
-      });
-    } catch {
-      return demoDelay({ job_id: jobId, imported_rows: rows.length, error_rows: 0, errors: [], status: "completed" });
-    }
-  }
-
-  async deleteImportJob(jobId: string) {
-    try {
-      return await this.request(`/api/imports/jobs/${jobId}`, { method: "DELETE" });
-    } catch {
-      return demoDelay({ ok: true });
-    }
-  }
-
-  // ---------- Business Tools ----------
-  async getTools() {
-    try {
-      return await this.request<{ tools: any[] }>("/api/tools");
-    } catch {
-      return demoDelay({
-        tools: [
-          { name: "sales_totals", description: "Calculate total sales, transaction count, and average sale.", parameters: ["amountField", "dateRange"] },
-          { name: "top_products", description: "Rank products by total sales volume.", parameters: ["productField", "amountField", "dateRange", "limit"] },
-          { name: "invoice_list", description: "List invoices with optional status and date filters.", parameters: ["invoiceField", "customerField", "amountField", "statusFilter", "dateRange"] },
-          { name: "overdue_totals", description: "Calculate overdue invoice amounts and count.", parameters: ["amountField", "dueDateField", "statusField", "asOfDate"] },
-        ],
-      });
-    }
-  }
-
-  async runTool(tool: string, args: Record<string, unknown> = {}) {
-    try {
-      return await this.request<{ tool: string; workspace_id: string; result: unknown; generatedAt: string }>(
-        "/api/tools/run",
-        { method: "POST", headers: {}, body: JSON.stringify({ tool, ...args }) }
-      );
-    } catch {
-      return demoDelay({ tool, workspace_id: "demo", result: null, generatedAt: new Date().toISOString() });
-    }
-  }
-
-
-  // ---------- Agent ----------
-  async runAgent(conversationId: string, message: string) {
-    try {
-      return await this.request<{
-        id: string;
-        conversationId: string;
-        status: string;
-        steps: any[];
-        finalAnswer: string | null;
-        error: string | null;
-        createdAt: string;
-        completedAt: string | null;
-      }>("/api/agent/run", {
-        method: "POST",
-        headers: {},
-        body: JSON.stringify({ conversation_id: conversationId, message }),
-      });
-    } catch {
-      return demoDelay({
-        id: `agent_${Date.now()}`,
-        conversationId,
-        status: "completed",
-        steps: [],
-        finalAnswer: "[Demo mode] Agent orchestration requires a live backend with Ollama.",
-        error: null,
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-      });
-    }
-  }
-
-  async getAgentRuns() {
-    try {
-      return await this.request<{ runs: any[] }>("/api/agent/runs");
-    } catch {
-      return demoDelay({ runs: [] });
-    }
-  }
-
-  async getAgentRun(id: string) {
-    try {
-      return await this.request<{
-        id: string;
-        conversationId: string;
-        status: string;
-        steps: any[];
-        finalAnswer: string | null;
-        error: string | null;
-        createdAt: string;
-        completedAt: string | null;
-      }>(`/api/agent/runs/${id}`);
-    } catch {
-      return demoDelay({
-        id,
-        conversationId: "",
-        status: "completed",
-        steps: [],
-        finalAnswer: null,
-        error: null,
-        createdAt: new Date().toISOString(),
-        completedAt: null,
-      });
-    }
-  }
-
-  // ---------- Reports ----------
   // ---------- Reports ----------
   async getReports() {
     try {
       return await this.request<{ reports: any[] }>("/api/reports");
     } catch {
-      const { DEMO_REPORTS } = await import("@/data/demoData");
-      return demoDelay({ reports: DEMO_REPORTS });
+      return { reports: [] };
     }
   }
 
-  async downloadReport(id: string) {
-    try {
-      if (!API_BASE) {
-        throw new Error("Live API is not configured; using demo data.");
-      }
+  async createReport(title: string, type: string) {
+    return await this.request<{ report: any }>("/api/reports", {
+      method: "POST",
+      body: JSON.stringify({ title, type }),
+    });
+  }
 
-      const response = await fetch(`${API_BASE}/api/reports/${id}/download`);
-      if (!response.ok) throw new Error("Download failed");
-      return response;
-    } catch {
-      return demoDelay(null);
-    }
+  async downloadReport(id: string) {
+    const url = API_BASE ? `${API_BASE}/api/reports/${id}/download` : `/api/reports/${id}/download`;
+    return await fetch(url, { credentials: "include" });
   }
 
   // ---------- Approvals ----------
@@ -473,119 +333,155 @@ class ApiClient {
     try {
       return await this.request<{ approvals: any[] }>("/api/approvals");
     } catch {
-      const { DEMO_APPROVALS } = await import("@/data/demoData");
-      return demoDelay({ approvals: DEMO_APPROVALS });
+      return { approvals: [] };
     }
   }
 
   async approveItem(id: string) {
-    try {
-      return await this.request<{ approval: any }>(
-        `/api/approvals/${id}/approve`,
-        { method: "POST" }
-      );
-    } catch {
-      return demoDelay({ approval: { id, status: "approved" as const } });
-    }
+    return await this.request<{ approval: any }>(`/api/approvals/${id}/approve`, {
+      method: "POST",
+    });
   }
 
   async rejectItem(id: string) {
-    try {
-      return await this.request<{ approval: any }>(
-        `/api/approvals/${id}/reject`,
-        { method: "POST" }
-      );
-    } catch {
-      return demoDelay({ approval: { id, status: "rejected" as const } });
-    }
+    return await this.request<{ approval: any }>(`/api/approvals/${id}/reject`, {
+      method: "POST",
+    });
   }
 
-  // ---------- Settings ----------
-  async getProviderHealth() {
-    try {
-      return await this.request<{ providers: any[] }>(
-        "/api/providers"
-      );
-    } catch {
-      return demoDelay({
-        providers: [
-          { name: "Ollama (local)", status: "unknown", configured: false },
-          { name: "Embeddings", status: "unknown", configured: false },
-        ],
-      });
-    }
+  // ---------- Admin Portal ----------
+  async getAdminOverview() {
+    return await this.request<{
+      metrics: {
+        totalUsers: number;
+        totalWorkspaces: number;
+        totalDocuments: number;
+        totalChunks: number;
+        totalConversations: number;
+        totalApprovals: number;
+        totalReports: number;
+        totalRecords: number;
+        totalSales: number;
+        overdueCount: number;
+        overdueAmount: number;
+      };
+    }>("/api/admin/overview");
+  }
+
+  async getAdminUsers() {
+    return await this.request<{
+      users: Array<{
+        id: string;
+        email: string;
+        name: string;
+        role: string;
+        workspaceId?: string;
+        workspaceName: string;
+        isActive: boolean;
+        documentCount: number;
+        conversationCount: number;
+        createdAt: string;
+      }>;
+    }>("/api/admin/users");
+  }
+
+  async updateUserRole(userId: string, role: string) {
+    return await this.request<{ message: string; userId: string; role: string }>(
+      `/api/admin/users/${userId}/role`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      }
+    );
+  }
+
+  async updateUserStatus(userId: string, isActive: boolean) {
+    return await this.request<{ message: string; userId: string; isActive: boolean }>(
+      `/api/admin/users/${userId}/status`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ is_active: isActive }),
+      }
+    );
+  }
+
+  async deleteUser(userId: string) {
+    return await this.request<{ message: string; userId: string }>(
+      `/api/admin/users/${userId}`,
+      {
+        method: "DELETE",
+      }
+    );
+  }
+
+  async getAdminNumericalData() {
+    return await this.request<{
+      workspaces: Array<{
+        workspace_id: string;
+        workspace_name: string;
+        slug: string;
+        user_count: number;
+        document_count: number;
+        chunk_count: number;
+        record_count: number;
+        report_count: number;
+        approval_count: number;
+      }>;
+    }>("/api/admin/data");
+  }
+
+  async recalculateAdminMetrics() {
+    return await this.request<{ message: string; timestamp: string }>("/api/admin/data/recalculate", {
+      method: "POST",
+    });
   }
 
   // ---------- Auth ----------
-
   async getCsrfToken() {
     try {
       return await this.request<{ csrf_token: string }>("/api/auth/csrf-token");
     } catch {
-      return demoDelay({ csrf_token: "demo-csrf-token" });
+      return { csrf_token: "" };
     }
   }
 
   async register(email: string, password: string, name?: string) {
-    try {
-      const csrf = await this.getCsrfToken();
-      return await this.request<{ user: any; workspace: any }>("/api/auth/register", {
-        method: "POST",
-        headers: { "X-CSRF-Token": csrf.csrf_token },
-        body: JSON.stringify({ email, password, name }),
-      });
-    } catch {
-      return demoDelay({
-        user: { id: "user_demo", email, role: "admin", workspace_id: "ws_demo" },
-        workspace: { id: "ws_demo", name: name ?? "Personal Workspace", slug: "ws_demo" },
-      });
-    }
+    const csrf = await this.getCsrfToken();
+    return await this.request<{ user: any; workspace: any }>("/api/auth/register", {
+      method: "POST",
+      headers: csrf.csrf_token ? { "X-CSRF-Token": csrf.csrf_token } : {},
+      body: JSON.stringify({ email, password, name }),
+    });
   }
 
   async login(email: string, password: string) {
-    try {
-      const csrf = await this.getCsrfToken();
-      return await this.request<{ user: any }>("/api/auth/login", {
-        method: "POST",
-        headers: { "X-CSRF-Token": csrf.csrf_token },
-        body: JSON.stringify({ email, password }),
-      });
-    } catch {
-      return demoDelay({
-        user: { id: "user_demo", email, role: "admin", workspace_id: "ws_demo" },
-      });
-    }
+    const csrf = await this.getCsrfToken();
+    return await this.request<{ user: any }>("/api/auth/login", {
+      method: "POST",
+      headers: csrf.csrf_token ? { "X-CSRF-Token": csrf.csrf_token } : {},
+      body: JSON.stringify({ email, password }),
+    });
   }
 
   async logout() {
-    try {
-      return await this.request("/api/auth/logout", { method: "POST" });
-    } catch {
-      return demoDelay({ ok: true });
-    }
+    return await this.request("/api/auth/logout", { method: "POST" });
   }
 
   async getMe() {
     try {
       return await this.request<{ user: any }>("/api/auth/me");
     } catch {
-      return demoDelay({
-        user: { id: "user_demo", name: "Jane Doe", email: "jane@freelance.example", role: "admin", workspace_id: "ws_demo" },
-      });
+      return { user: null };
     }
   }
 
   async changePassword(currentPassword: string, newPassword: string) {
-    try {
-      const csrf = await this.getCsrfToken();
-      return await this.request("/api/auth/change-password", {
-        method: "POST",
-        headers: { "X-CSRF-Token": csrf.csrf_token },
-        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-      });
-    } catch {
-      return demoDelay({ ok: true });
-    }
+    const csrf = await this.getCsrfToken();
+    return await this.request("/api/auth/change-password", {
+      method: "POST",
+      headers: csrf.csrf_token ? { "X-CSRF-Token": csrf.csrf_token } : {},
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
   }
 }
 

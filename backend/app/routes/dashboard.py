@@ -27,12 +27,39 @@ def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
     )
     appr_count = appr_res[0]["count"] if appr_res else 0
 
+    rep_res = query(
+        "SELECT COUNT(*) as count FROM reports WHERE workspace_id = %s",
+        (ws_id,),
+    )
+    rep_count = rep_res[0]["count"] if rep_res else 0
+
+    chunk_res = query(
+        """
+        SELECT COUNT(*) as count FROM document_chunks dc
+        JOIN documents d ON d.id = dc.document_id
+        WHERE d.workspace_id = %s
+        """,
+        (ws_id,),
+    )
+    chunk_count = chunk_res[0]["count"] if chunk_res else 0
+
+    ws_res = query("SELECT name FROM workspaces WHERE id = %s", (ws_id,))
+    ws_name = ws_res[0]["name"] if ws_res else "Primary Workspace"
+
     return {
         "summary": {
             "documentCount": doc_count,
             "conversationCount": conv_count,
             "pendingApprovalsCount": appr_count,
+            "reportCount": rep_count,
+            "chunkCount": chunk_count,
             "workspaceId": ws_id,
+            "workspaceName": ws_name,
+            "user": {
+                "name": current_user.get("name"),
+                "email": current_user.get("email"),
+                "role": current_user.get("role"),
+            },
         }
     }
 

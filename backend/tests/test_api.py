@@ -1,5 +1,6 @@
 import io
 import os
+import time
 from pathlib import Path
 import uuid
 import pytest
@@ -248,3 +249,50 @@ async def test_synthetic_policy_rag_and_injection():
     )
     assert "PWNED_BY_INJECTION" not in inj_res.answer
     assert "bangalore" in inj_res.answer.lower() or "innovation park" in inj_res.answer.lower()
+
+
+def test_admin_portal_and_name_registration():
+    client = TestClient(app)
+    unique_ts = int(time.time() * 1000)
+
+    # 1. Register new user with full name, email, password
+    reg_res = client.post(
+        "/api/auth/register",
+        json={
+            "name": "Sarah Connor",
+            "email": f"sarah_{unique_ts}@example.com",
+            "password": "Password123!",
+        },
+    )
+    assert reg_res.status_code == 200
+    reg_data = reg_res.json()
+    assert reg_data["user"]["name"] == "Sarah Connor"
+    assert reg_data["user"]["role"] == "owner"
+
+    # 2. Check /api/auth/me returns name
+    me_res = client.get("/api/auth/me")
+    assert me_res.status_code == 200
+    assert me_res.json()["user"]["name"] == "Sarah Connor"
+
+    # 3. Test Admin Overview
+    admin_overview = client.get("/api/admin/overview")
+    assert admin_overview.status_code == 200
+    metrics = admin_overview.json()["metrics"]
+    assert "totalUsers" in metrics
+    assert "totalWorkspaces" in metrics
+    assert "totalSales" in metrics
+
+    # 4. Test Admin Users List
+    admin_users = client.get("/api/admin/users")
+    assert admin_users.status_code == 200
+    user_list = admin_users.json()["users"]
+    assert len(user_list) >= 1
+    emails = [u["email"] for u in user_list]
+    assert f"sarah_{unique_ts}@example.com" in emails
+
+    # 5. Test Admin Numerical Workspace Data
+    admin_data = client.get("/api/admin/data")
+    assert admin_data.status_code == 200
+    workspaces = admin_data.json()["workspaces"]
+    assert len(workspaces) >= 1
+
